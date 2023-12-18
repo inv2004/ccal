@@ -24,13 +24,6 @@ proc mons(mm: openArray[Month], year: int, today: DateTime, holidays: seq[string
   for i, dt in dts:
     if i > 0:
       stdout.write "   "
-    # for d in dMon..dSun:
-    #   if d > dMon:
-    #     stdout.styledWrite(styleUnderscore, " ")
-    #   if dt.year == today.year and dt.month == today.month and d == today.weekday:
-    #     stdout.styledWrite(styleUnderscore, bgBlue, ($d)[0..1])
-    #   else:
-    #     stdout.styledWrite(styleUnderscore, ($d)[0..1])
     stdout.styledWrite(styleUnderscore, toSeq(dMon..dSun).mapIt(($it)[
         0..1]).join(" "))
   stdout.writeLine ""
@@ -97,17 +90,14 @@ proc findHolidays(year: int, country: string): (string, seq[string]) =
     if elems.len > 0:
       result[0] = elems[0]["countryCode"].getStr().toLower()
     result[1] = elems.mapIt(it["date"].getStr())
-    return
   else:
     if not fileExists(file & "_" & country):
       cacheHolidays(country, year)
     result[0] = country
     result[1] = readFile(file & "_" & country).parseJson().getElems().mapIt(it["date"].getStr())
-    return
 
-proc printYear(year: int, country: string) =
+proc printYear(year: int, country: string, today: DateTime) =
   let (country, holidays) = findHolidays(year, country)
-  let today = now()
 
   if year == today.year:
     stdout.styledWrite(bgBlue, $year)
@@ -121,36 +111,30 @@ proc printYear(year: int, country: string) =
   mons([mMay, mJun, mJul, mAug], year, today, holidays)
   mons([mSep, mOct, mNov, mDec], year, today, holidays)
 
-proc main() =
-  var year = 0
-  var country = ""
-  if paramCount() == 1:
-    if paramStr(1) in ["-h", "--help"]:
-      echo fmt"{paramStr(0)} [year] [country]"
+proc parseArgs(): (seq[int], string) =
+  for i in 1..paramCount():
+    if paramStr(i) in ["-h", "--help"]:
+      echo fmt"{paramStr(0)} [year(s)] [country]"
       quit 0
-    if paramStr(1) in ["--clean"]:
+    elif paramStr(i) in ["--clean"]:
       removeDir(getCacheDir("ncal"))
       quit 0
-    else:
-      try:
-        year = parseInt(paramStr(1))
-      except ValueError:
-        year = now().year()
-        country = paramStr(1)
-  elif paramCount() == 2:
     try:
-      year = parseInt(paramStr(1))
-      country = paramStr(2)
+      result[0].add parseInt(paramStr(i))
     except ValueError:
-      country = paramStr(1)
-      year = parseInt(paramStr(2))
-  elif paramCount() > 2:
-    echo fmt"{paramStr(0)} [year] [country]"
-    quit 1
-  else:
-    year = now().year()
+      result[1] = paramStr(i)
 
-  printYear(year, country)
+proc main() =
+  let (years, country) = parseArgs()
+  let today = now()
+  if years.len == 0:
+    printYear(today.year(), country, today)
+  else:
+    for i, y in years:
+      if i > 0:
+        stdout.writeLine ""
+      printYear((if y < 100: 2000+y else: y), country, today)
+
 
 when isMainModule:
   main()
