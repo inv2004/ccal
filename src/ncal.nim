@@ -24,6 +24,13 @@ proc mons(mm: openArray[Month], year: int, today: DateTime, holidays: seq[string
   for i, dt in dts:
     if i > 0:
       stdout.write "   "
+    # for d in dMon..dSun:
+    #   if d > dMon:
+    #     stdout.styledWrite(styleUnderscore, " ")
+    #   if dt.year == today.year and dt.month == today.month and d == today.weekday:
+    #     stdout.styledWrite(styleUnderscore, bgBlue, ($d)[0..1])
+    #   else:
+    #     stdout.styledWrite(styleUnderscore, ($d)[0..1])
     stdout.styledWrite(styleUnderscore, toSeq(dMon..dSun).mapIt(($it)[
         0..1]).join(" "))
   stdout.writeLine ""
@@ -68,7 +75,6 @@ proc cacheHolidays(country: string, year: int) =
   var c = country
   if country == "":
     c = client.getContent("https://ipinfo.io").parseJson()["country"].getStr().toLower()
-  echo fmt "cache {year} {c}"
   let buf = client.getContent(fmt"https://date.nager.at/api/v3/PublicHolidays/{year}/{c}")
   let dir = getCacheDir("ncal")
   if not dirExists(dir):
@@ -101,11 +107,16 @@ proc findHolidays(year: int, country: string): (string, seq[string]) =
 
 proc printYear(year: int, country: string) =
   let (country, holidays) = findHolidays(year, country)
+  let today = now()
 
-  stdout.writeLine fmt"{year} ({country})"
+  if year == today.year:
+    stdout.styledWrite(bgBlue, $year)
+  else:
+    stdout.write $year
+  stdout.write fmt" ({country})"
+  stdout.writeLine ""
   stdout.writeLine ""
 
-  let today = now()
   mons([mJan, mFeb, mMar, mApr], year, today, holidays)
   mons([mMay, mJun, mJul, mAug], year, today, holidays)
   mons([mSep, mOct, mNov, mDec], year, today, holidays)
@@ -116,6 +127,9 @@ proc main() =
   if paramCount() == 1:
     if paramStr(1) in ["-h", "--help"]:
       echo fmt"{paramStr(0)} [year] [country]"
+      quit 0
+    if paramStr(1) in ["--clean"]:
+      removeDir(getCacheDir("ncal"))
       quit 0
     else:
       try:
