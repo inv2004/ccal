@@ -73,15 +73,15 @@ proc mons(mm: openArray[Month], year: int, today: DateTime, holidays: seq[string
 
 proc cacheHolidays(cacheDir: string, country: string, year: int): string =
   let client = newHttpClient(timeout = HTTP_TIMEOUT, headers = newHttpHeaders(HTTP_HEADERS))
-  var c = country
-  if country == "":
+  result = country
+  if result == "":
     result = client.getContent(IP_INFO_URL).parseJson()["country"].getStr().toLower()
   let buf = client.getContent(fmt"{HOLIDAYS_URL}/{year}/{result}")
-  if not dirExists(cacheDir):
-    createDir(cacheDir)
   if buf.parseJson().getElems().len == 0:
     return ""
-  let file = cacheDir / fmt"{year}_{c}"
+  if not dirExists(cacheDir):
+    createDir(cacheDir)
+  let file = cacheDir / fmt"{year}_{result}"
   writeFile(file, buf)
   if country == "":
     createSymlink(file, cacheDir / $year)
@@ -89,22 +89,22 @@ proc cacheHolidays(cacheDir: string, country: string, year: int): string =
 proc findHolidays(year: int, country: string): (string, seq[string]) =
   let cacheDir = getCacheDir(APP)
   var file = cacheDir / $year
-  if country != "":
+  if country == "":
+    let parts = expandSymlink(file).extractFilename().split('_')
+    doAssert parts.len == 2
+    result[0] = parts[1]
+  else:
     file.add ("_" & country)
     result[0] = country
   if not fileExists(file):
     result[0] =
       try:
         cacheHolidays(cacheDir, country, year)
-      except OSError:
+      except OSError, HttpRequestError:
         stderr.writeLine getCurrentExceptionMsg()
-        return
+        return ("", @[])
     if result[0] == "":
-      return  
-  else:
-    let parts = expandSymlink(file).extractFilename().split('_')
-    doAssert parts.len == 2
-    result[0] = parts[1]
+      return
   result[1] = readFile(file).parseJson().getElems().mapIt(it["date"].getStr())
 
 proc printYear(year: int, country: string, today: DateTime) =
@@ -123,7 +123,13 @@ proc printYear(year: int, country: string, today: DateTime) =
 
 proc parseArgs(): (seq[int], string) =
   for i in 1..paramCount():
-    if paramStr(i) in ["-h", "--help"]:
+    if paramStr(i) in ["--cleanup"]:
+      removeDir(getCacheDir(APP))
+      quit 0
+    elif paramStr(1) in ["-v", "--version"]:
+      echo NimblePkgVersion
+      quit 0
+    elif paramStr(i) in ["-h", "--help"] or paramStr(i).startsWith("-"):
       echo fmt"""
 Usage:
 {APP} [year(s)] [country]   year (or several) and country code
@@ -131,12 +137,6 @@ Usage:
      --cleanup             cleanup holidays cache
      --version -v          version
 """
-      quit 0
-    elif paramStr(i) in ["--cleanup"]:
-      removeDir(getCacheDir(APP))
-      quit 0
-    elif paramStr(1) in ["-v", "--version"]:
-      echo NimblePkgVersion
       quit 0
     try:
       let y = parseInt(paramStr(i))
