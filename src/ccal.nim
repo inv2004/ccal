@@ -7,6 +7,7 @@ import os
 import httpclient
 import json
 
+const NimblePkgVersion {.strdefine.} = "Unknown"
 const APP = "ccal"
 const ONE_DAY = initDuration(days = 1)
 const HTTP_HEADERS = {"User-Agent": "curl/8.5.0"}
@@ -126,12 +127,16 @@ proc parseArgs(): (seq[int], string) =
       echo fmt"""
 Usage:
 {APP} [year(s)] [country]   year (or several) and country code
-{APP} [country] [year(s)]
-{APP} --cleanup             cleanup holidays cache
+     [country] [year(s)]
+     --cleanup             cleanup holidays cache
+     --version -v          version
 """
       quit 0
     elif paramStr(i) in ["--cleanup"]:
       removeDir(getCacheDir(APP))
+      quit 0
+    elif paramStr(1) in ["-v", "--version"]:
+      echo NimblePkgVersion
       quit 0
     try:
       let y = parseInt(paramStr(i))
