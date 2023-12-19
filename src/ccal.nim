@@ -96,11 +96,7 @@ proc cacheHolidays(cacheDir: string, country: string, year: int): string =
 proc findHolidays(year: int, country: string): (string, seq[string]) =
   let cacheDir = getCacheDir(APP)
   var file = cacheDir / $year
-  if country == "":
-    let parts = expandSymlink(file).extractFilename().split('_')
-    doAssert parts.len == 2
-    result[0] = parts[1]
-  else:
+  if country != "":
     file.add ("_" & country)
     result[0] = country
   if not fileExists(file):
@@ -112,6 +108,11 @@ proc findHolidays(year: int, country: string): (string, seq[string]) =
         return ("", @[])
     if result[0] == "":
       return
+  elif country == "":
+    let parts = expandSymlink(file).extractFilename().split('_')
+    doAssert parts.len == 2
+    result[0] = parts[1]
+
   result[1] = readFile(file).parseJson().getElems().mapIt(it["date"].getStr())
 
 proc printYear(year: int, country: string, today: DateTime) =
