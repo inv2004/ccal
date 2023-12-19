@@ -18,7 +18,12 @@ const HOLIDAYS_URL = "https://date.nager.at/api/v3/PublicHolidays"
 proc nl() =
   stdout.writeLine ""
 
+proc sp() =
+  stdout.write "  "
+
 proc mons(mm: openArray[Month], year: int, today: DateTime, holidays: seq[string]) =
+
+  sp()
   var dts = mm.mapIt(dateTime(year, it, 1, 0, 0, 0))
   for i, dt in dts:
     if i > 0:
@@ -29,6 +34,7 @@ proc mons(mm: openArray[Month], year: int, today: DateTime, holidays: seq[string
       stdout.styledWrite(styleUnderscore, fmt"{dt.month:^20}")
   nl()
 
+  sp()
   for i, dt in dts:
     if i > 0:
       stdout.write "   "
@@ -37,6 +43,7 @@ proc mons(mm: openArray[Month], year: int, today: DateTime, holidays: seq[string
   nl()
 
   for _ in 1..6:
+    sp()
     var i = 0
     for dt in dts.mitems:
       if i > 0:
@@ -110,6 +117,7 @@ proc findHolidays(year: int, country: string): (string, seq[string]) =
 proc printYear(year: int, country: string, today: DateTime) =
   let (country, holidays) = findHolidays(year, country)
 
+  sp()
   if year == today.year:
     stdout.styledWrite(bgBlue, $year)
   else:
