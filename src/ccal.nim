@@ -10,7 +10,7 @@ import json
 const APP = "ccal"
 const ONE_DAY = initDuration(days = 1)
 const HTTP_HEADERS = {"User-Agent": "curl/8.5.0"}
-const HTTP_TIMEOUT = 200
+const HTTP_TIMEOUT = 1000
 const IP_INFO_URL = "https://ipinfo.io"
 const HOLIDAYS_URL = "https://date.nager.at/api/v3/PublicHolidays"
 
@@ -123,9 +123,14 @@ proc printYear(year: int, country: string, today: DateTime) =
 proc parseArgs(): (seq[int], string) =
   for i in 1..paramCount():
     if paramStr(i) in ["-h", "--help"]:
-      echo fmt"{paramStr(0)} [year(s)] [country]"
+      echo fmt"""
+Usage:
+{APP} [year(s)] [country]   year (or several) and country code
+{APP} [country] [year(s)]
+{APP} --cleanup             cleanup holidays cache
+"""
       quit 0
-    elif paramStr(i) in ["--clean"]:
+    elif paramStr(i) in ["--cleanup"]:
       removeDir(getCacheDir(APP))
       quit 0
     try:
