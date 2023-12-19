@@ -7,8 +7,15 @@ import os
 import httpclient
 import json
 
+const APP = "ccal"
 const ONE_DAY = initDuration(days = 1)
 const HTTP_HEADERS = {"User-Agent": "curl/8.5.0"}
+const HTTP_TIMEOUT = 200
+const IP_INFO_URL = "https://ipinfo.io"
+const HOLIDAYS_URL = "https://date.nager.at/api/v3/PublicHolidays"
+
+proc nl() =
+  stdout.writeLine ""
 
 proc mons(mm: openArray[Month], year: int, today: DateTime, holidays: seq[string]) =
   var dts = mm.mapIt(dateTime(year, it, 1, 0, 0, 0))
@@ -19,14 +26,14 @@ proc mons(mm: openArray[Month], year: int, today: DateTime, holidays: seq[string
       stdout.styledWrite(styleUnderscore, bgBlue, fmt"{dt.month:^20}")
     else:
       stdout.styledWrite(styleUnderscore, fmt"{dt.month:^20}")
-  stdout.writeLine ""
+  nl()
 
   for i, dt in dts:
     if i > 0:
       stdout.write "   "
     stdout.styledWrite(styleUnderscore, toSeq(dMon..dSun).mapIt(($it)[
         0..1]).join(" "))
-  stdout.writeLine ""
+  nl()
 
   for _ in 1..6:
     var i = 0
@@ -61,40 +68,43 @@ proc mons(mm: openArray[Month], year: int, today: DateTime, holidays: seq[string
         if dt.month() != mm[i]:
           stdout.write(" ".repeat(3*(6 - int(weekday(dt - ONE_DAY)))))
       i.inc
-    stdout.writeLine ""
+    nl()
 
-proc cacheHolidays(country: string, year: int) =
-  let client = newHttpClient(headers = newHttpHeaders(HTTP_HEADERS))
+proc cacheHolidays(cacheDir: string, country: string, year: int): string =
+  let client = newHttpClient(timeout = HTTP_TIMEOUT, headers = newHttpHeaders(HTTP_HEADERS))
   var c = country
   if country == "":
-    c = client.getContent("https://ipinfo.io").parseJson()["country"].getStr().toLower()
-  let buf = client.getContent(fmt"https://date.nager.at/api/v3/PublicHolidays/{year}/{c}")
-  let dir = getCacheDir("ncal")
-  if not dirExists(dir):
-    createDir(dir)
+    result = client.getContent(IP_INFO_URL).parseJson()["country"].getStr().toLower()
+  let buf = client.getContent(fmt"{HOLIDAYS_URL}/{year}/{result}")
+  if not dirExists(cacheDir):
+    createDir(cacheDir)
   if buf.parseJson().getElems().len == 0:
-    return
-  let file = dir / fmt"{year}_{c}"
+    return ""
+  let file = cacheDir / fmt"{year}_{c}"
   writeFile(file, buf)
   if country == "":
-    createSymlink(file, dir / $year)
+    createSymlink(file, cacheDir / $year)
 
 proc findHolidays(year: int, country: string): (string, seq[string]) =
-  let dir = getCacheDir("ncal")
-  let file = dir / $year
-
-  if country == "":
-    if not fileExists(file):
-      cacheHolidays(country, year)
-    let elems = readFile(file).parseJson().getElems()
-    if elems.len > 0:
-      result[0] = elems[0]["countryCode"].getStr().toLower()
-    result[1] = elems.mapIt(it["date"].getStr())
-  else:
-    if not fileExists(file & "_" & country):
-      cacheHolidays(country, year)
+  let cacheDir = getCacheDir(APP)
+  var file = cacheDir / $year
+  if country != "":
+    file.add ("_" & country)
     result[0] = country
-    result[1] = readFile(file & "_" & country).parseJson().getElems().mapIt(it["date"].getStr())
+  if not fileExists(file):
+    result[0] =
+      try:
+        cacheHolidays(cacheDir, country, year)
+      except OSError:
+        stderr.writeLine getCurrentExceptionMsg()
+        return
+    if result[0] == "":
+      return  
+  else:
+    let parts = expandSymlink(file).extractFilename().split('_')
+    doAssert parts.len == 2
+    result[0] = parts[1]
+  result[1] = readFile(file).parseJson().getElems().mapIt(it["date"].getStr())
 
 proc printYear(year: int, country: string, today: DateTime) =
   let (country, holidays) = findHolidays(year, country)
@@ -104,12 +114,11 @@ proc printYear(year: int, country: string, today: DateTime) =
   else:
     stdout.write $year
   stdout.write fmt" ({country})"
-  stdout.writeLine ""
-  stdout.writeLine ""
+  nl()
+  nl()
 
-  mons([mJan, mFeb, mMar, mApr], year, today, holidays)
-  mons([mMay, mJun, mJul, mAug], year, today, holidays)
-  mons([mSep, mOct, mNov, mDec], year, today, holidays)
+  for mm in distribute(toSeq(mJan..mDec), 3):
+    mons(mm, year, today, holidays)
 
 proc parseArgs(): (seq[int], string) =
   for i in 1..paramCount():
@@ -117,10 +126,11 @@ proc parseArgs(): (seq[int], string) =
       echo fmt"{paramStr(0)} [year(s)] [country]"
       quit 0
     elif paramStr(i) in ["--clean"]:
-      removeDir(getCacheDir("ncal"))
+      removeDir(getCacheDir(APP))
       quit 0
     try:
-      result[0].add parseInt(paramStr(i))
+      let y = parseInt(paramStr(i))
+      result[0].add (if y < 100: 2000+y else: y)
     except ValueError:
       result[1] = paramStr(i)
 
@@ -132,9 +142,8 @@ proc main() =
   else:
     for i, y in years:
       if i > 0:
-        stdout.writeLine ""
-      printYear((if y < 100: 2000+y else: y), country, today)
-
+        nl()
+      printYear(y, country, today)
 
 when isMainModule:
   main()
