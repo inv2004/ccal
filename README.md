@@ -5,6 +5,20 @@ Calendar with local holidays via ip location
 * Caches holidays and location in local cache folder
 
 ## Install
+
+### Static binary
+```bash
+wget https://github.com/inv2004/ccal/releases/latest/download/ccal
+chmod +x ccal
+mv ccal ~/bin/
+```
+
+### Arch/AUR
+```bash
+yay -S ttop
+```
+
+### Nimble
 ```bash
 nimble install ccal
 ```
