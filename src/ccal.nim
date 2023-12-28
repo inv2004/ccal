@@ -24,7 +24,7 @@ proc sp() =
 proc mons(mm: openArray[Month], year: int, today: DateTime, holidays: seq[string]) =
 
   sp()
-  var dts = mm.mapIt(dateTime(year, it, 1, 0, 0, 0))
+  var dts = mm.mapIt(dateTime(year, it, 1, zone = utc()))
   for i, dt in dts:
     if i > 0:
       stdout.write "   "
