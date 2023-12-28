@@ -9,7 +9,7 @@ Calendar with local holidays via ip location
 nimble install ccal
 ```
 
-![image](https://github.com/inv2004/ccal/assets/4949069/580b07ce-aacc-4274-ac50-b9a1a118af79)
+![image](.github/images/ccal.png)
 
 ## Usage
 ```bash
