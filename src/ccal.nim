@@ -4,14 +4,12 @@ import strformat
 import terminal
 import sequtils
 import os
-import httpclient
+import osproc
 import json
 
 const NimblePkgVersion {.strdefine.} = "Unknown"
 const APP = "ccal"
 const ONE_DAY = initDuration(days = 1)
-const HTTP_HEADERS = {"User-Agent": "curl/8.5.0"}
-const HTTP_TIMEOUT = 1000
 const IP_INFO_URL = "https://ipinfo.io"
 const HOLIDAYS_URL = "https://date.nager.at/api/v3/PublicHolidays"
 
@@ -22,7 +20,6 @@ proc sp() =
   stdout.write "  "
 
 proc mons(mm: openArray[Month], year: int, today: DateTime, holidays: seq[string]) =
-
   sp()
   var dts = mm.mapIt(dateTime(year, it, 1, zone = utc()))
   for i, dt in dts:
@@ -78,18 +75,27 @@ proc mons(mm: openArray[Month], year: int, today: DateTime, holidays: seq[string
       i.inc
     nl()
 
+proc fetchJson(url: string): JsonNode =
+  let cmd = fmt"curl -m 5 -s '{url}'"
+  let (buf, code) = execCmdEx(cmd, {poUsePath})
+  if code != 0:
+    raise newException(OSError, "Error during exec: " & cmd)
+  try:
+    return buf.parseJson()
+  except:
+    raise newException(ValueError, "Cannot parse result of: " & buf)
+
 proc cacheHolidays(cacheDir: string, country: string, year: int): string =
-  let client = newHttpClient(timeout = HTTP_TIMEOUT, headers = newHttpHeaders(HTTP_HEADERS))
   result = country
   if result == "":
-    result = client.getContent(IP_INFO_URL).parseJson()["country"].getStr().toLower()
-  let buf = client.getContent(fmt"{HOLIDAYS_URL}/{year}/{result}")
-  if buf.parseJson().getElems().len == 0:
+    result = fetchJson(IP_INFO_URL)["country"].getStr().toLower()
+  let json = fetchJson(fmt"{HOLIDAYS_URL}/{year}/{result}")
+  if json.getElems().len == 0:
     return ""
   if not dirExists(cacheDir):
     createDir(cacheDir)
   let file = cacheDir / fmt"{year}_{result}"
-  writeFile(file, buf)
+  writeFile(file, $json)
   if country == "":
     createSymlink(file, cacheDir / $year)
 
@@ -103,7 +109,7 @@ proc findHolidays(year: int, country: string): (string, seq[string]) =
     result[0] =
       try:
         cacheHolidays(cacheDir, country, year)
-      except OSError, HttpRequestError:
+      except:
         stderr.writeLine getCurrentExceptionMsg()
         return ("", @[])
     if result[0] == "":

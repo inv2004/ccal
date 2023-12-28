@@ -1,0 +1,40 @@
+# Maintainer: inv2004 (https://github.com/inv2004)
+
+pkgname=ccal
+pkgver=0.2.2
+pkgrel=1
+pkgdesc="Calendar with local holidays via ip location"
+arch=('x86_64')
+url="https://github.com/inv2004/ccal"
+license=("MIT")
+makedepends=(
+    "git"
+    "nim"
+)
+provides=($pkgname)
+source=(
+    "git+"$url
+)
+sha256sums=("SKIP")
+
+pkgver() {
+    cd "${srcdir}/${pkgname}"
+    VER=$(git tag | sort -V | tail -1)
+    printf "%s" "${VER#v}"
+}
+
+prepare() {
+    cd "${srcdir}/${pkgname}"
+    VER=$(git tag | sort -V | tail -1)
+    git checkout "$VER"
+}
+
+build() {
+    cd "${srcdir}/${pkgname}"
+    nimble -y -d:release build
+}
+
+package() {
+    cd "${srcdir}/${pkgname}"
+    install -D $pkgname "${pkgdir}/usr/bin/${pkgname}"
+}

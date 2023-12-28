@@ -1,0 +1,44 @@
+name: Build
+
+on:
+  push:
+    branches:
+    - main
+    tags:
+    - '*'
+    paths-ignore:
+      - '**/README.md'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: sudo apt-get -y install musl-tools
+      - uses: actions/checkout@v3
+      - uses: jiro4989/setup-nim-action@v1
+      - run: nim --version && nimble -y -d install && nimble static
+      - uses: ncipollo/release-action@v1
+        if: contains(github.ref, 'refs/tags/v')
+        with:
+          artifacts: "ccal"
+          makeLatest: true
+          allowUpdates: true
+
+  aur:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    needs: build
+    if: contains(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ulises-jeremias/github-actions-aur-publish@v1
+        with:
+          pkgname: ccal
+          pkgbuild: aur/PKGBUILD
+          assets: aur/.INSTALL
+          commit_username: ${{ secrets.AUR_USERNAME }}
+          commit_email: ${{ secrets.AUR_EMAIL }}
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: Update AUR package
+          update_pkgver: true
