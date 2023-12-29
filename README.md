@@ -15,11 +15,6 @@ curl -LO https://github.com/inv2004/ccal/releases/latest/download/ccal \
 && mv ccal ~/bin/
 ```
 
-### Arch/AUR
-```bash
-yay -S ttop
-```
-
 ### Nimble
 ```bash
 nimble install ccal
