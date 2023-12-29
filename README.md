@@ -4,6 +4,8 @@ Calendar with local holidays via ip location
 
 * Caches holidays and location in local cache folder
 
+![image](.github/images/ccal.png)
+
 ## Install
 
 ### Static binary
@@ -22,8 +24,6 @@ yay -S ttop
 ```bash
 nimble install ccal
 ```
-
-![image](.github/images/ccal.png)
 
 ## Usage
 ```bash
