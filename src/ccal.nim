@@ -6,6 +6,7 @@ import sequtils
 import os
 import osproc
 import json
+import tables
 
 const NimblePkgVersion {.strdefine.} = "Unknown"
 const APP = "ccal"
@@ -13,13 +14,55 @@ const ONE_DAY = initDuration(days = 1)
 const IP_INFO_URL = "https://ipinfo.io"
 const HOLIDAYS_URL = "https://date.nager.at/api/v3/PublicHolidays"
 
+type
+  PTYPE = enum
+    Green
+    Underscore
+
+  PDaysSet = array[1+int(high(PTYPE)), bool]
+  PDays = Table[string, PDaysSet]
+
 proc nl() =
   stdout.writeLine ""
 
 proc sp() =
   stdout.write "  "
 
-proc mons(mm: openArray[Month], year: int, today: DateTime, holidays: seq[string]) =
+proc personal(): PDays =
+  let confDir = getConfigDir() / APP
+  for pt in low(PTYPE)..high(PTYPE):
+    try:
+      for l in lines(confDir / toLower($pt) & ".txt"):
+        result.mgetOrPut(l, [false, false])[int(pt)] = true
+    except IOError:
+      discard
+
+proc dayWrite(dt: DateTime, holidays: seq[string], pds: PDays, isToday: bool) =
+  let s = fmt"{dt.monthday():2}"
+  let f = dt.format("yyyy-MM-dd")
+  let pd = pds.getOrDefault(f)
+  if pd[int(Underscore)]:
+    setStyle {styleUnderscore}
+
+  if pd[int(Green)] or pd[int(Underscore)]:
+    if f in holidays:
+      setForegroundColor fgYellow
+    else:
+      setForegroundColor fgGreen
+  else:
+    if f in holidays:
+      setForegroundColor fgRed
+    elif dt.weekday in [dSun, dSat]:
+      setForegroundColor fgBlue
+    else:
+      setForegroundColor fgWhite
+
+  if isToday:
+    setStyle {styleReverse}      
+  
+  stdout.styledWrite s
+
+proc mons(mm: openArray[Month], year: int, today: DateTime, holidays: seq[string], pdays: PDays) =
   sp()
   var dts = mm.mapIt(dateTime(year, it, 1, zone = utc()))
   for i, dt in dts:
@@ -52,21 +95,7 @@ proc mons(mm: openArray[Month], year: int, today: DateTime, holidays: seq[string
         while dt.month() == mm[i]:
           if dt.weekDay != dMon:
             stdout.write " "
-          if dt.format("yyyy-MM-dd") in holidays:
-            if today.monthday == dt.monthday and today.month == dt.month and today.year == dt.year:
-              stdout.styledWrite(bgRed, fmt"{dt.monthday():2}")
-            else:
-              stdout.styledWrite(fgRed, fmt"{dt.monthday():2}")
-          elif dt.weekDay in [dSun, dSat]:
-            if today.monthday == dt.monthday and today.month == dt.month and today.year == dt.year:
-              stdout.styledWrite(bgBlue, fmt"{dt.monthday():2}")
-            else:
-              stdout.styledWrite(fgBlue, fmt"{dt.monthday():2}")
-          else:
-            if today.monthday == dt.monthday and today.month == dt.month and today.year == dt.year:
-              stdout.styledWrite(bgBlue, fmt"{dt.monthday():2}")
-            else:
-              stdout.write(fmt"{dt.monthday():2}")
+          dt.dayWrite(holidays, pdays, today == dt)
           dt += ONE_DAY
           if dt.weekday == dMon:
             break
@@ -133,8 +162,10 @@ proc printYear(year: int, country: string, today: DateTime) =
   nl()
   nl()
 
+  let pdays = personal()
+
   for mm in distribute(toSeq(mJan..mDec), 3):
-    mons(mm, year, today, holidays)
+    mons(mm, year, today, holidays, pdays)
 
 proc parseArgs(): (seq[int], string) =
   for i in 1..paramCount():
@@ -161,7 +192,8 @@ Usage:
 
 proc main() =
   let (years, country) = parseArgs()
-  let today = now()
+  let n = now().utc()
+  let today = dateTime(n.year, n.month, n.monthday, zone = utc())
   if years.len == 0:
     printYear(today.year(), country, today)
   else:
@@ -170,5 +202,26 @@ proc main() =
         nl()
       printYear(y, country, today)
 
+proc testColors() =
+  for (y, u) in [(false, false), (true, false), (false, true), (true, true)]:
+    for (str0, style) in {"workday": fgWhite, "weekend": fgBlue, "holiday": fgRed, "weekend holiday":fgRed}:
+      var str = str0
+      if u:
+        str = "underscore " & str
+        setStyle {styleUnderscore}
+      if y:
+        str = "yellow " & str
+        if str.contains "holiday":
+          setForegroundColor(fgGreen)
+        else:
+          setForegroundColor(fgYellow)
+      else:
+        setForegroundColor(style)
+      stdout.write fmt"{str:40}"
+      setStyle {styleReverse}
+      stdout.styledWrite(fmt"today {str:40}")
+      nl()
+
 when isMainModule:
+  # testColors()
   main()
