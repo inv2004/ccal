@@ -7,20 +7,27 @@ import os
 import osproc
 import json
 import tables
+import hashes
 
 const NimblePkgVersion {.strdefine.} = "Unknown"
 const APP = "ccal"
 const ONE_DAY = initDuration(days = 1)
 const IP_INFO_URL = "https://ipinfo.io"
 const HOLIDAYS_URL = "https://date.nager.at/api/v3/PublicHolidays"
+const LOW_YEAR = 100
 
 type
   PTYPE = enum
     Green
     Underscore
 
-  PDaysSet = array[1+int(high(PTYPE)), bool]
-  PDays = Table[string, PDaysSet]
+  PDay = object
+    colors: set[ForegroundColor]
+    styles: set[Style]
+  PDays = OrderedTable[DateTime, PDay]
+
+proc hash(dt: DateTime): Hash =
+  hash(format(dt, "yyyy-MM-dd"))
 
 proc nl() =
   stdout.writeLine ""
@@ -28,41 +35,60 @@ proc nl() =
 proc sp() =
   stdout.write "  "
 
-proc personal(): PDays =
+proc today(): DateTime =
+  let todayLocal = now().local()
+  dateTime(todayLocal.year, todayLocal.month, todayLocal.monthday, zone = utc())
+
+proc personal(year = today().year): PDays =
   let confDir = getConfigDir() / APP
-  for pt in low(PTYPE)..high(PTYPE):
-    try:
-      for l in lines(confDir / toLower($pt) & ".txt"):
-        result.mgetOrPut(l, [false, false])[int(pt)] = true
-    except IOError:
-      discard
+  for f in walkFiles(confDir / "*.txt"):
+    var pday = PDay(colors: {fgGreen})
+    for l in lines(f):
+      try:
+        var dt = parse(l, "YYYY-M-d", utc())
+        if dt.year < LOW_YEAR:
+          dt = dateTime(dt.year + 2000, dt.month, dt.monthday, zone = utc())
+        result[dt] = pday
+      except TimeParseError:
+        try:
+          var dt = parse(l, "M-d", utc())
+          dt = dateTime(year, dt.month, dt.monthday, zone = utc())
+          result[dt] = pday
+        except TimeParseError:
+          for str in l.split(' '):
+            try:
+              let c = parseEnum[ForegroundColor](str) # TODO: Nim exception destructor error
+              pday.colors = {c}
+            except ValueError:
+              try:
+                if str == "styleReset":
+                  pday.styles = {}
+                else:
+                  pday.styles.incl parseEnum[Style](str)
+              except ValueError:
+                stderr.write("Cannot parse: `", str, "` in ", f)
+                nl()
 
-proc dayWrite(dt: DateTime, holidays: seq[string], pds: PDays, isToday: bool) =
-  let s = fmt"{dt.monthday():2}"
-  let f = dt.format("yyyy-MM-dd")
-  let pd = pds.getOrDefault(f)
-  if pd[int(Underscore)]:
-    setStyle {styleUnderscore}
-
-  if pd[int(Green)] or pd[int(Underscore)]:
-    if f in holidays:
-      setForegroundColor fgYellow
-    else:
-      setForegroundColor fgGreen
+proc mixColors(colors: set[ForegroundColor]): ForegroundColor =
+  result = fgDefault
+  if colors == {fgGreen, fgRed}:
+    return fgYellow
+  elif colors == {fgBlue, fgRed}:
+    return fgRed
   else:
-    if f in holidays:
-      setForegroundColor fgRed
-    elif dt.weekday in [dSun, dSat]:
-      setForegroundColor fgBlue
-    else:
-      setForegroundColor fgWhite
+    for c in colors:
+      return c
 
-  if isToday:
-    setStyle {styleReverse}      
+proc dayWrite(dt: DateTime, pds: PDays) =
+  var pd = pds.getOrDefault(dt)
+  if dt.weekday in [dSun, dSat]:
+    pd.colors.incl fgBlue
+  setForegroundColor mixColors(pd.colors)
+  setStyle pd.styles
   
-  stdout.styledWrite s
+  stdout.styledWrite fmt"{dt.monthday():2}"
 
-proc mons(mm: openArray[Month], year: int, today: DateTime, holidays: seq[string], pdays: PDays) =
+proc mons(mm: openArray[Month], year: int, today: DateTime, pdays: PDays) =
   sp()
   var dts = mm.mapIt(dateTime(year, it, 1, zone = utc()))
   for i, dt in dts:
@@ -95,7 +121,7 @@ proc mons(mm: openArray[Month], year: int, today: DateTime, holidays: seq[string
         while dt.month() == mm[i]:
           if dt.weekDay != dMon:
             stdout.write " "
-          dt.dayWrite(holidays, pdays, today == dt)
+          dt.dayWrite(pdays)
           dt += ONE_DAY
           if dt.weekday == dMon:
             break
@@ -128,7 +154,7 @@ proc cacheHolidays(cacheDir: string, country: string, year: int): string =
   if country == "":
     createSymlink(file, cacheDir / $year)
 
-proc findHolidays(year: int, country: string): (string, seq[string]) =
+proc findHolidays(year: int, country: string): (string, PDays) =
   let cacheDir = getCacheDir(APP)
   var file = cacheDir / $year
   if country != "":
@@ -140,7 +166,8 @@ proc findHolidays(year: int, country: string): (string, seq[string]) =
         cacheHolidays(cacheDir, country, year)
       except:
         stderr.writeLine getCurrentExceptionMsg()
-        return ("", @[])
+        result[0] = ""
+        return
     if result[0] == "":
       return
   elif country == "":
@@ -148,7 +175,19 @@ proc findHolidays(year: int, country: string): (string, seq[string]) =
     doAssert parts.len == 2
     result[0] = parts[1]
 
-  result[1] = readFile(file).parseJson().getElems().mapIt(it["date"].getStr())
+  for d in readFile(file).parseJson().getElems():
+    result[1][d["date"].getStr().parse("yyyy-MM-dd", utc())] = Pday(colors: {fgRed})
+
+proc mix(a, b: PDays): PDays =
+  var keys = initTable[DateTime, bool]()
+  for k, _ in a:
+    keys[k] = true
+  for k, _ in b:
+    keys[k] = true
+  for k, _ in keys:
+    let aa = a.getOrDefault(k)
+    let bb = b.getOrDefault(k)
+    result[k] = PDay(colors: aa.colors + bb.colors, styles: aa.styles + bb.styles)
 
 proc printYear(year: int, country: string, today: DateTime) =
   let (country, holidays) = findHolidays(year, country)
@@ -162,13 +201,41 @@ proc printYear(year: int, country: string, today: DateTime) =
   nl()
   nl()
 
-  let pdays = personal()
+  var pdays = mix(holidays, personal(year))
+  pdays.mgetOrPut(today, PDay()).styles.incl styleReverse
 
   for mm in distribute(toSeq(mJan..mDec), 3):
-    mons(mm, year, today, holidays, pdays)
+    mons(mm, year, today, pdays)
+
+proc printPersonal() =
+  var pdays = personal()
+  if pdays.len == 0:
+    let confDir = getConfigDir() / APP
+    echo """
+No personal calendars found
+
+You can create one, for example:
+--- """ & confDir & """/mydays.txt ---
+fgGreen
+2024-06-01
+2024-07-01
+2024-08-01
+styleUnderscore
+2024-06-30
+2024-07-31
+2024-08-31
+"""
+    return
+  
+  pdays.sort(func (a, b: (DateTime, PDay)): int = cmp(a[0], b[0]))
+  for dt, v in pdays:
+    echo ($dt)[0..9], ": ", v
 
 proc parseArgs(): (seq[int], string) =
   for i in 1..paramCount():
+    if paramStr(i) in ["-p"]:
+      printPersonal()
+      quit 0
     if paramStr(i) in ["--cleanup"]:
       removeDir(getCacheDir(APP))
       quit 0
@@ -180,20 +247,20 @@ proc parseArgs(): (seq[int], string) =
 Usage:
 {APP} [year(s)] [country]   year (or several) and country code
      [country] [year(s)]
+     -p                    print personal days
      --cleanup             cleanup holidays cache
      --version -v          version
 """
       quit 0
     try:
       let y = parseInt(paramStr(i))
-      result[0].add (if y < 100: 2000+y else: y)
+      result[0].add (if y < LOW_YEAR: 2000+y else: y)
     except ValueError:
       result[1] = paramStr(i)
 
 proc main() =
   let (years, country) = parseArgs()
-  let n = now().utc()
-  let today = dateTime(n.year, n.month, n.monthday, zone = utc())
+  let today = today()
   if years.len == 0:
     printYear(today.year(), country, today)
   else:
@@ -202,26 +269,5 @@ proc main() =
         nl()
       printYear(y, country, today)
 
-proc testColors() =
-  for (y, u) in [(false, false), (true, false), (false, true), (true, true)]:
-    for (str0, style) in {"workday": fgWhite, "weekend": fgBlue, "holiday": fgRed, "weekend holiday":fgRed}:
-      var str = str0
-      if u:
-        str = "underscore " & str
-        setStyle {styleUnderscore}
-      if y:
-        str = "yellow " & str
-        if str.contains "holiday":
-          setForegroundColor(fgGreen)
-        else:
-          setForegroundColor(fgYellow)
-      else:
-        setForegroundColor(style)
-      stdout.write fmt"{str:40}"
-      setStyle {styleReverse}
-      stdout.styledWrite(fmt"today {str:40}")
-      nl()
-
 when isMainModule:
-  # testColors()
   main()
