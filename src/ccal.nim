@@ -55,16 +55,19 @@ proc personal(year = today().year): PDays =
           dt = dateTime(year, dt.month, dt.monthday, zone = utc())
           result[dt] = pday
         except TimeParseError:
-          for str in l.split(' '):
+          var firstStyle = true
+          for str in l.splitWhitespace():
             try:
               let c = parseEnum[ForegroundColor](str) # TODO: Nim exception destructor error
               pday.colors = {c}
             except ValueError:
               try:
-                if str == "styleReset":
-                  pday.styles = {}
+                let style = parseEnum[Style](str)
+                if firstStyle:
+                  pday.styles = {style}
+                  firstStyle = false
                 else:
-                  pday.styles.incl parseEnum[Style](str)
+                  pday.styles.incl style
               except ValueError:
                 stderr.write("Cannot parse: `", str, "` in ", f)
                 nl()
