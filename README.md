@@ -23,7 +23,7 @@ nimble install ccal
 ```
 
 ### Custom style
-`$HOME/.config/ccal/myevents.txt``
+`$HOME/.config/ccal/myevents.txt`
 ```
 fgGreen
 2024-01-05
