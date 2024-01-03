@@ -15,6 +15,7 @@ const ONE_DAY = initDuration(days = 1)
 const IP_INFO_URL = "https://ipinfo.io"
 const HOLIDAYS_URL = "https://date.nager.at/api/v3/PublicHolidays"
 const LOW_YEAR = 100
+const DEFAULT_FG_COLOR = if defined(windows): fgWhite else: fgDefault
 
 type
   PTYPE = enum
@@ -73,7 +74,7 @@ proc personal(year = today().year): PDays =
                 nl()
 
 proc mixColors(colors: set[ForegroundColor]): ForegroundColor =
-  result = fgDefault
+  result = DEFAULT_FG_COLOR
   if colors == {fgGreen, fgRed}:
     return fgYellow
   elif colors == {fgBlue, fgRed}:
@@ -181,7 +182,7 @@ proc findHolidays(year: int, country: string): (string, PDays) =
   for d in readFile(file).parseJson().getElems():
     result[1][d["date"].getStr().parse("yyyy-MM-dd", utc())] = Pday(colors: {fgRed})
 
-proc mix(a, b: PDays): PDays =
+proc mixDays(a, b: PDays): PDays =
   var keys = initTable[DateTime, bool]()
   for k, _ in a:
     keys[k] = true
@@ -194,6 +195,7 @@ proc mix(a, b: PDays): PDays =
 
 proc printYear(year: int, country: string, today: DateTime) =
   let (country, holidays) = findHolidays(year, country)
+  defer: resetAttributes()
 
   sp()
   if year == today.year:
@@ -204,7 +206,7 @@ proc printYear(year: int, country: string, today: DateTime) =
   nl()
   nl()
 
-  var pdays = mix(holidays, personal(year))
+  var pdays = mixDays(holidays, personal(year))
   pdays.mgetOrPut(today, PDay()).styles.incl styleReverse
 
   for mm in distribute(toSeq(mJan..mDec), 3):
