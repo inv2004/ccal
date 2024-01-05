@@ -202,7 +202,7 @@ proc printYear(year: int, country: string, today: DateTime) =
     stdout.styledWrite(bgBlue, $year)
   else:
     stdout.write $year
-  stdout.write fmt" ({country})"
+  stdout.write fmt" ({country.toUpper()})"
   nl()
   nl()
 
