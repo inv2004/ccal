@@ -18,14 +18,15 @@ jobs:
         os: [ubuntu, macos]
     runs-on: ${{ matrix.os }}-latest
     steps:
-      - run: sudo apt-get -y install musl-tools
+      - if: ${{ matrix.os }} == ubuntu
+        run: sudo apt-get -y install musl-tools
       - uses: actions/checkout@v3
       - uses: jiro4989/setup-nim-action@v1
       - run: |
           DEST=$(echo ${{matrix.os}} | sed 's/ubuntu/linux/')
           nim --version \
           && nimble -y -d install \
-          && nimble static \
+          && [[ DEST == linux ]] && nimble static || nimble build \
           && mv ccal ccal_$DEST \
       - uses: ncipollo/release-action@v1
         if: contains(github.ref, 'refs/tags/v')
