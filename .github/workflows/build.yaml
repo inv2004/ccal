@@ -12,7 +12,6 @@ on:
 
 jobs:
   build:
-    timeout-minutes: 5
     timeout-minutes: 10
     strategy:
       matrix:
