@@ -12,7 +12,7 @@ Calendar with local holidays via ip location
 
 ### Static binary
 ```bash
-curl -LO https://github.com/inv2004/ccal/releases/latest/download/ccal \
+curl -LO https://github.com/inv2004/ccal/releases/latest/download/ccal_linux \   # or _macos
 && chmod +x ccal \
 && mv ccal ~/bin/
 ```
