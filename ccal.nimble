@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.4.3"
+version       = "0.4.4"
 author        = "inv2004"
 description   = "calendar with local holidays via ip location"
 license       = "MIT"
