@@ -18,7 +18,7 @@ jobs:
         os: [ubuntu, macos]
     runs-on: ${{ matrix.os }}-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: jiro4989/setup-nim-action@v1
       - run: |
           DEST=$(echo ${{matrix.os}} | sed 's/ubuntu/linux/')
@@ -41,7 +41,7 @@ jobs:
     needs: build
     if: contains(github.ref, 'refs/tags/v')
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ulises-jeremias/github-actions-aur-publish@v1
         with:
           pkgname: ccal
