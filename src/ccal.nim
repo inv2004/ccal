@@ -40,39 +40,6 @@ proc today(): DateTime =
   let todayLocal = now().local()
   dateTime(todayLocal.year, todayLocal.month, todayLocal.monthday, zone = utc())
 
-proc personal(year = today().year): PDays =
-  let confDir = getConfigDir() / APP
-  for f in walkFiles(confDir / "*.txt"):
-    var pday = PDay(colors: {fgGreen})
-    for l in lines(f):
-      try:
-        var dt = parse(l, "YYYY-M-d", utc())
-        if dt.year < LOW_YEAR:
-          dt = dateTime(dt.year + 2000, dt.month, dt.monthday, zone = utc())
-        result[dt] = pday
-      except TimeParseError:
-        try:
-          var dt = parse(l, "M-d", utc())
-          dt = dateTime(year, dt.month, dt.monthday, zone = utc())
-          result[dt] = pday
-        except TimeParseError:
-          var firstStyle = true
-          for str in l.splitWhitespace():
-            try:
-              let c = parseEnum[ForegroundColor](str) # TODO: Nim exception destructor error
-              pday.colors = {c}
-            except ValueError:
-              try:
-                let style = parseEnum[Style](str)
-                if firstStyle:
-                  pday.styles = {style}
-                  firstStyle = false
-                else:
-                  pday.styles.incl style
-              except ValueError:
-                stderr.write("Cannot parse: `", str, "` in ", f)
-                nl()
-
 proc mixColors(colors: set[ForegroundColor]): ForegroundColor =
   result = DEFAULT_FG_COLOR
   if colors == {fgGreen, fgRed}:
@@ -89,7 +56,7 @@ proc dayWrite(dt: DateTime, pds: PDays) =
     pd.colors.incl fgBlue
   setForegroundColor mixColors(pd.colors)
   setStyle pd.styles
-  
+
   stdout.styledWrite fmt"{dt.monthday():2}"
 
 proc mons(mm: openArray[Month], year: int, today: DateTime, pdays: PDays) =
@@ -120,7 +87,7 @@ proc mons(mm: openArray[Month], year: int, today: DateTime, pdays: PDays) =
         stdout.write "   "
       if dt.month != mm[i]:
         stdout.write(" ".repeat(max(0, 3*7 - 1)))
-      else: 
+      else:
         stdout.write(" ".repeat(max(0, 3*int(dt.weekday()) - 1)))
         while dt.month() == mm[i]:
           if dt.weekDay != dMon:
@@ -193,6 +160,42 @@ proc mixDays(a, b: PDays): PDays =
     let bb = b.getOrDefault(k)
     result[k] = PDay(colors: aa.colors + bb.colors, styles: aa.styles + bb.styles)
 
+proc personalFile(f: string, year: int): PDays =
+  var pday = PDay(colors: {fgGreen})
+  for l in lines(f):
+    try:
+      var dt = parse(l, "YYYY-M-d", utc())
+      if dt.year < LOW_YEAR:
+        dt = dateTime(dt.year + 2000, dt.month, dt.monthday, zone = utc())
+      result[dt] = pday
+    except TimeParseError:
+      try:
+        var dt = parse(l, "M-d", utc())
+        dt = dateTime(year, dt.month, dt.monthday, zone = utc())
+        result[dt] = pday
+      except TimeParseError:
+        var firstStyle = true
+        for str in l.replace(',', ' ').splitWhitespace():
+          try:
+            let c = parseEnum[ForegroundColor](str) # TODO: Nim exception destructor error
+            pday.colors = {c}
+          except ValueError:
+            try:
+              let style = parseEnum[Style](str)
+              if firstStyle:
+                pday.styles = {style}
+                firstStyle = false
+              else:
+                pday.styles.incl style
+            except ValueError:
+              stderr.write("Cannot parse: `", str, "` in ", f)
+              nl()
+
+proc personal(year = today().year): PDays =
+  let confDir = getConfigDir() / APP
+  for f in walkFiles(confDir / "*.txt"):
+    result = mixDays(result, personalFile(f, year))
+
 proc printYear(year: int, country: string, today: DateTime) =
   let (country, holidays) = findHolidays(year, country)
   defer: resetAttributes()
@@ -231,7 +234,7 @@ styleUnderscore
 2024-08-31
 """
     return
-  
+
   pdays.sort(func (a, b: (DateTime, PDay)): int = cmp(a[0], b[0]))
   for dt, v in pdays:
     echo ($dt)[0..9], ": ", v
