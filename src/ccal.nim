@@ -12,7 +12,7 @@ import hashes
 const NimblePkgVersion {.strdefine.} = "Unknown"
 const APP = "ccal"
 const ONE_DAY = initDuration(days = 1)
-const IP_INFO_URL = "https://ipinfo.io"
+const IP_INFO_URL = "http://ip-api.com/json"
 const HOLIDAYS_URL = "https://date.nager.at/api/v3/PublicHolidays"
 const LOW_YEAR = 100
 const DEFAULT_FG_COLOR = if defined(windows): fgWhite else: fgDefault
@@ -114,7 +114,7 @@ proc fetchJson(url: string): JsonNode =
 proc cacheHolidays(cacheDir: string, country: string, year: int): string =
   result = country
   if result == "":
-    result = fetchJson(IP_INFO_URL)["country"].getStr().toLower()
+    result = fetchJson(IP_INFO_URL)["countryCode"].getStr().toLower()
   let json = fetchJson(fmt"{HOLIDAYS_URL}/{year}/{result}")
   if json.getElems().len == 0:
     return ""
