@@ -13,8 +13,7 @@ Calendar with local holidays via ip location
 ### Static binary
 ```bash
 curl -LO https://github.com/inv2004/ccal/releases/latest/download/ccal_linux \   # or _macos
-&& mv ccal_linux ccal && chmod +x ccal \
-&& mv ccal ~/bin/
+&& mv ccal_linux ccal && chmod +x ccal && mv ccal ~/bin/
 ```
 
 ### Nimble
