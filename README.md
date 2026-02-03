@@ -35,7 +35,7 @@ styleDim styleUnderscore
 2024-08-17
 ```
 
-* it mixes colors sometimes: if it is "red" holiday and your "green day" => yellow
+* it mixes colors: if it is "red" holiday and your "green day" => yellow
 
 ## Usage
 ```bash
